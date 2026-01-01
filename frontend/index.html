@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Feature1 – Job Dashboard</title>
+  <style>
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #999;
+      padding: 6px;
+      text-align: left;
+      font-size: 14px;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+  </style>
+</head>
+
+<body>
+
+<h2>Feature1 – Create Job</h2>
+
+<label>User ID:</label><br>
+<input type="text" id="userId"><br><br>
+
+<label>Video:</label><br>
+<input type="file" id="videoFile"><br><br>
+
+<label>Audio:</label><br>
+<input type="file" id="audioFile"><br><br>
+
+<button type="button" onclick="createJob()">Create Job</button>
+
+<hr>
+
+<h2>Jobs in DB</h2>
+<button type="button" onclick="fetchJobs()">Refresh Jobs</button>
+
+<div id="jobsTableContainer"></div>
+
+<script>
+const BASE_URL = "http://127.0.0.1:8000";
+
+async function createJob() {
+  try {
+    const userId = document.getElementById("userId").value;
+    const video = document.getElementById("videoFile").files[0];
+    const audio = document.getElementById("audioFile").files[0];
+
+    if (!userId || !video || !audio) {
+      alert("All fields are required");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("video", video);
+    formData.append("audio", audio);
+
+    const response = await fetch(
+      `${BASE_URL}/feature1/create-job?user_id=${userId}`,
+      {
+        method: "POST",
+        body: formData
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Create job failed");
+    }
+
+    const data = await response.json();
+    alert("Job created: " + data.job_id);
+
+  } catch (err) {
+    alert("Create job error: " + err.message);
+  }
+}
+
+async function fetchJobs() {
+  try {
+    const response = await fetch(`${BASE_URL}/feature1/jobs`, {
+      method: "GET"
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch jobs");
+    }
+
+    const jobs = await response.json();
+    renderJobsTable(jobs);
+
+  } catch (err) {
+    document.getElementById("jobsTableContainer").innerText =
+      "Error loading jobs: " + err.message;
+  }
+}
+
+function renderJobsTable(jobs) {
+  if (!jobs || jobs.length === 0) {
+    document.getElementById("jobsTableContainer").innerHTML =
+      "<p>No jobs found</p>";
+    return;
+  }
+
+  let table = `
+    <table>
+      <thead>
+        <tr>
+          <th>Job ID</th>
+          <th>User ID</th>
+          <th>Status</th>
+          <th>Created At</th>
+          <th>Input Video</th>
+          <th>Input Audio</th>
+          <th>Output Video</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  jobs.forEach(job => {
+    table += `
+      <tr>
+        <td>${job.job_id}</td>
+        <td>${job.user_id}</td>
+        <td>${job.status}</td>
+        <td>${job.created_at}</td>
+        <td>${job.input_video}</td>
+        <td>${job.input_audio}</td>
+        <td>${job.output_video}</td>
+      </tr>
+    `;
+  });
+
+  table += "</tbody></table>";
+
+  document.getElementById("jobsTableContainer").innerHTML = table;
+}
+</script>
+
+</body>
+</html>

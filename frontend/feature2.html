@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Feature 2 – Text to Avatar</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            max-width: 600px;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            cursor: pointer;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Feature 2 – Text to Avatar (Test UI)</h2>
+
+<div class="section">
+    <label>User ID:</label><br />
+    <input type="text" id="user_id" value="test_user" />
+</div>
+
+<div class="section">
+    <label>Text:</label><br />
+    <textarea id="text"></textarea>
+</div>
+
+<div class="section">
+    <label>Gender:</label><br />
+    <input type="radio" name="gender" value="male" checked /> Male
+    <input type="radio" name="gender" value="female" /> Female
+</div>
+
+<div class="section">
+    <label>Video:</label><br />
+    <input type="file" id="video" accept="video/*" />
+</div>
+
+<div class="section">
+    <button onclick="submitFeature2()">Submit</button>
+</div>
+
+<h3>Response</h3>
+<pre id="response"></pre>
+
+<script>
+async function submitFeature2() {
+    const userId = document.getElementById("user_id").value;
+    const text = document.getElementById("text").value;
+    const video = document.getElementById("video").files[0];
+    const gender = document.querySelector('input[name="gender"]:checked').value;
+
+    if (!text || !video) {
+        alert("Text and video are required");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("user_id", userId);
+    formData.append("text", text);
+    formData.append("gender", gender);
+    formData.append("video", video);
+
+    try {
+        const res = await fetch(
+            "http://127.0.0.1:8000/feature2/text-to-avatar",
+            {
+                method: "POST",
+                body: formData
+            }
+        );
+
+        const data = await res.json();
+        document.getElementById("response").textContent =
+            JSON.stringify(data, null, 2);
+    } catch (err) {
+        document.getElementById("response").textContent =
+            "Error: " + err;
+    }
+}
+</script>
+
+</body>
+</html>
