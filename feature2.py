@@ -1,7 +1,8 @@
-# api/feature2.py
+# backend/feature2.py
 
 import os
 import uuid
+import threading
 import requests
 from fastapi import APIRouter, UploadFile, Form, File, HTTPException
 
@@ -13,64 +14,79 @@ router = APIRouter(prefix="/feature2", tags=["Feature2"])
 FEATURE1_ENDPOINT = "http://127.0.0.1:8000/feature1/create-job"
 
 
+import subprocess
+
+def normalize_audio(input_wav: str) -> str:
+    normalized_wav = input_wav.replace(".wav", "_norm.wav")
+
+    subprocess.run(
+        [
+            "ffmpeg", "-y",
+            "-i", input_wav,
+            "-ar", "16000",
+            "-ac", "1",
+            normalized_wav
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+
+    return normalized_wav
+# After Sarvam TTS
+
+
+
+def enqueue_feature1_job(user_id, video_path, audio_path):
+    try:
+        with open(video_path, "rb") as v, open(audio_path, "rb") as a:
+            requests.post(
+                FEATURE1_ENDPOINT,
+                params={"user_id": user_id},
+                files={
+                    "video": (os.path.basename(video_path), v, "video/mp4"),
+                    "audio": (os.path.basename(audio_path), a, "audio/wav"),
+                },
+                timeout=5
+            )
+    except Exception as e:
+        # Log only — never crash Feature-2
+        print(f"[Feature2] Failed to enqueue Feature-1 job: {e}")
+
+
 @router.post("/text-to-avatar")
-async def text_to_audio(
+async def text_to_avatar(
     user_id: str = Form(...),
     text: str = Form(...),
     gender: str = Form(...),
     video: UploadFile = File(...)
 ):
-    # 1️⃣ Create single UUID for this job
     job_id = str(uuid.uuid4())
-
     upload_dir = f"storage/uploads/{job_id}"
     os.makedirs(upload_dir, exist_ok=True)
 
-    # 2️⃣ Save uploaded video
     video_path = os.path.join(upload_dir, f"{job_id}.mp4")
     with open(video_path, "wb") as f:
         f.write(await video.read())
 
-    # 3️⃣ Generate REAL Sarvam TTS audio
     try:
         voice = get_voice(gender)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    audio_path = os.path.join(upload_dir, f"{job_id}.wav")
-
-    try:
-        generate_audio(
-            text=text,
-            voice=voice,
-            output_path=audio_path
-        )
+        audio_path = os.path.join(upload_dir, f"{job_id}.wav")
+        # audio_path = normalize_audio(audio_path)
+        generate_audio(text=text, voice=voice, output_path=audio_path)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"TTS generation failed: {e}")
+        raise HTTPException(500, f"TTS failed: {e}")
 
-    # 4️⃣ Forward audio + video to Feature-1
-    try:
-        with open(video_path, "rb") as v, open(audio_path, "rb") as a:
-            response = requests.post(
-                FEATURE1_ENDPOINT,
-                params={"user_id": user_id},
-                files={
-                    "video": (f"{job_id}.mp4", v, "video/mp4"),
-                    "audio": (f"{job_id}.wav", a, "audio/wav"),
-                },
-                timeout=60
-            )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to call Feature1: {e}")
+    # 🔥 FIRE & FORGET
+    threading.Thread(
+        target=enqueue_feature1_job,
+        args=(user_id, video_path, audio_path),
+        daemon=True
+    ).start()
 
-    if response.status_code != 200:
-        raise HTTPException(
-            status_code=response.status_code,
-            detail=f"Feature1 error: {response.text}"
-        )
-
+    # ✅ Immediate success response
     return {
-        "message": "Feature2 job created successfully",
+        "status": "QUEUED",
         "job_id": job_id,
-        "feature1_response": response.json()
+        "message": "Job queued successfully"
     }
