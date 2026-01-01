@@ -27,31 +27,6 @@ TECH STACK
 
 ------------------------------------------------------------
 
-FOLDER STRUCTURE
-
-backend/
-│
-├── main.py                    → FastAPI entry point
-├── scheduler.py               → Job scheduler (single-job execution)
-├── db.py                      → Database connection
-├── jobs.db                    → Job metadata database
-│
-├── services/
-│   ├── feature1_executor.py   → Feature-1 execution logic
-│   ├── job_executor.py        → Job orchestration
-│   └── job_repository.py      → Job DB operations
-│
-├── feature1.py                → Feature-1 API routes
-├── feature2.py                → Feature-2 API routes
-│
-├── storage/
-│   ├── uploads/               → Input audio/video files
-│   └── outputs/               → Final generated videos
-│
-└── .env                       → Environment variables
-
-------------------------------------------------------------
-
 PREREQUISITES
 
 - Python 3.9 or higher
@@ -126,7 +101,9 @@ Flow:
 
 Endpoints:
 POST /feature1/create-job
+
 GET  /feature1/jobs
+
 GET  /feature1/download/{job_id}
 
 ------------------------------------------------------------
