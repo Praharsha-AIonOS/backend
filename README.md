@@ -1,194 +1,181 @@
-AlonOS – IntelliAvatar Backend
+# AlonOS – IntelliAvatar Backend
 
-This repository contains the backend services for IntelliAvatar, an AI-powered avatar video generation system.
+This repository contains the backend services for IntelliAvatar.
+The backend manages job creation, scheduling, AI execution, and file storage
+for avatar video generation.
+
+------------------------------------------------------------
+
+OVERVIEW
 
 The backend is responsible for:
+- Managing video generation jobs
+- Executing Feature-1 (Audio + Video → Avatar Video)
+- Executing Feature-2 (Text → Speech → Feature-1)
+- Running a scheduler for queued jobs
+- Downloading and storing generated outputs
 
-Job creation & lifecycle management
+------------------------------------------------------------
 
-Feature-1 (Audio + Video → Lip-synced Video)
+TECH STACK
 
-Feature-2 (Text → Speech → Feature-1)
+- Python 3.9+
+- FastAPI
+- SQLite
+- Requests
+- Uvicorn
 
-Scheduling & execution
+------------------------------------------------------------
 
-Download & storage management
+FOLDER STRUCTURE
 
-🧠 High-Level Architecture
-Frontend
-   ↓
-FastAPI Backend
-   ├── Feature-2 (Text → Speech → Job Creation)
-   ├── Feature-1 (Audio + Video → Model)
-   ├── Job Repository (SQLite)
-   ├── Scheduler (Single-Job Queue)
-   └── GPU Model Server (External)
-
-📂 Folder Structure
 backend/
-├── main.py                    # FastAPI app entry
-├── scheduler.py               # Job scheduler (single-job mode)
-├── db.py                      # SQLite DB connection
-├── jobs.db                    # Job metadata
+│
+├── main.py                    → FastAPI entry point
+├── scheduler.py               → Job scheduler (single-job execution)
+├── db.py                      → Database connection
+├── jobs.db                    → Job metadata database
 │
 ├── services/
-│   ├── feature1_executor.py   # Feature-1 execution logic
-│   ├── job_executor.py        # Job orchestration
-│   ├── job_repository.py      # DB CRUD operations
+│   ├── feature1_executor.py   → Feature-1 execution logic
+│   ├── job_executor.py        → Job orchestration
+│   └── job_repository.py      → Job DB operations
 │
-├── feature1.py                # Feature-1 API routes
-├── feature2.py                # Feature-2 API routes
+├── feature1.py                → Feature-1 API routes
+├── feature2.py                → Feature-2 API routes
 │
 ├── storage/
-│   ├── uploads/               # Input files (video/audio)
-│   └── outputs/               # Final generated videos
+│   ├── uploads/               → Input audio/video files
+│   └── outputs/               → Final generated videos
 │
-└── .env                       # Environment variables
+└── .env                       → Environment variables
 
-⚙️ Prerequisites
+------------------------------------------------------------
 
-Python 3.9+
+PREREQUISITES
 
-pip
+- Python 3.9 or higher
+- pip
+- Internet connection
+- GPU model server running separately
 
-Internet access (Sarvam TTS + GPU VM)
+------------------------------------------------------------
 
-GPU model server running separately
+INSTALLATION
 
-📦 Install Dependencies
-cd backend
-pip install -r requirements.txt
+1. Navigate to backend folder
 
-🔐 Environment Variables
+   cd backend
 
-Create a .env file:
+2. Install dependencies
+
+   pip install -r requirements.txt
+
+------------------------------------------------------------
+
+ENVIRONMENT VARIABLES
+
+Create a .env file inside backend directory:
 
 SARVAM_API_KEY=your_api_key_here
 
-▶️ Running the Backend
-1️⃣ Start FastAPI Server
-uvicorn main:app --reload
+------------------------------------------------------------
 
+RUNNING THE BACKEND
 
-Backend runs at:
+1. Start FastAPI server
 
-http://127.0.0.1:8000
+   uvicorn main:app --reload
 
+   Server runs at:
+   http://127.0.0.1:8000
 
-Swagger Docs:
+   API Docs:
+   http://127.0.0.1:8000/docs
 
-http://127.0.0.1:8000/docs
+2. Start Scheduler (mandatory)
 
-2️⃣ Start Scheduler (IMPORTANT)
+   Open a new terminal and run:
 
-The scheduler must run in a separate terminal.
+   python scheduler.py
 
-python scheduler.py
+The scheduler continuously:
+- Picks QUEUED jobs
+- Executes Feature-1
+- Downloads output video
+- Saves output
+- Updates job status
 
+------------------------------------------------------------
 
-The scheduler:
+FEATURE-1: AVATAR SYNC STUDIO
 
-Picks QUEUED jobs
+Input:
+- Video (.mp4)
+- Audio (.wav)
 
-Executes Feature-1
+Flow:
+1. Job is created with status QUEUED
+2. Scheduler picks the job
+3. Video + Audio sent to GPU model
+4. Model returns output filename
+5. Backend downloads the video
+6. File is renamed to job_id.mp4
+7. Saved to storage/outputs
+8. Job marked COMPLETED
 
-Downloads model output
-
-Saves to storage/outputs/{job_id}.mp4
-
-Updates job status & timestamps
-
-🎯 Feature Breakdown
-🔹 Feature-1: Avatar Sync Studio
-
-Input
-
-Video (.mp4)
-
-Audio (.wav)
-
-Flow
-
-Job created (QUEUED)
-
-Scheduler picks job
-
-Sends video + audio to GPU model
-
-Model returns output filename
-
-Backend downloads video
-
-Renames → {job_id}.mp4
-
-Saves to storage/outputs/
-
-Job marked COMPLETED
-
-Endpoint
-
+Endpoints:
 POST /feature1/create-job
 GET  /feature1/jobs
 GET  /feature1/download/{job_id}
 
-🔹 Feature-2: Text to Avatar
+------------------------------------------------------------
 
-Input
+FEATURE-2: TEXT TO AVATAR
 
-Text
+Input:
+- Text
+- Base video
+- Voice selection
 
-Base video
+Flow:
+1. Text converted to audio using Sarvam TTS
+2. Audio + video saved in uploads
+3. Feature-1 job is automatically created
+4. Scheduler processes the job
 
-Voice (Sarvam)
-
-Flow
-
-Text → Sarvam TTS → Audio
-
-Audio + Video saved in uploads
-
-Feature-1 job automatically created
-
-Scheduler processes job
-
-Endpoint
-
+Endpoint:
 POST /feature2/text-to-avatar
 
-🕒 Job Lifecycle
+------------------------------------------------------------
+
+JOB LIFECYCLE
+
 QUEUED → IN_PROGRESS → COMPLETED / FAILED
 
-Timestamps Stored
+Timestamps stored:
+- created_at   → Job submitted
+- started_at   → Scheduler start
+- completed_at → Job finished
 
-created_at → Job submission time
+------------------------------------------------------------
 
-started_at → Scheduler pickup
+OUTPUT STORAGE
 
-completed_at → Output saved
-
-📥 Output Handling
-
-Outputs are automatically downloaded
-
-Saved as:
+All completed videos are stored as:
 
 storage/outputs/{job_id}.mp4
 
+------------------------------------------------------------
 
-No manual download needed for execution
+NOTES
 
-❗ Common Notes
+- Model failures (500 errors) originate from GPU server
+- Backend safely continues processing next jobs
+- Failed jobs remain visible in dashboard
 
-Model failures (500) are external GPU issues
+------------------------------------------------------------
 
-Backend correctly retries next jobs
+STATUS
 
-Failed jobs remain visible in dashboard
-
-✅ Backend Status
-
-✔ Job queue working
-✔ Feature-1 stable
-✔ Feature-2 integrated
-✔ Scheduler reliable
-✔ Output storage consistent
+Backend implementation is stable and production-ready.
