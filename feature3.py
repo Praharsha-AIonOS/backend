@@ -3,30 +3,37 @@
 import threading
 import requests
 from typing import List
-from fastapi import APIRouter, UploadFile, Form, File, HTTPException
+from fastapi import APIRouter, UploadFile, Form, File, HTTPException, Depends
 
 from services.template_renderer import render_template
+from auth_router import get_current_user
 
 router = APIRouter(prefix="/feature3", tags=["Feature3"])
 
 FEATURE2_ENDPOINT = "http://127.0.0.1:8000/feature2/text-to-avatar"
 
 
-def fire_feature2(video_bytes: bytes, video_name: str, payload: dict):
+def fire_feature2(video_bytes: bytes, video_name: str, payload: dict, user_id_int: int):
     """
     Fire-and-forget call to Feature-2
+    Note: Feature-2 now requires auth, but for internal calls we pass user_id
     """
     try:
         print("\n[Feature3] → Calling Feature-2")
         print("[Feature3] Payload:", payload)
         print("[Feature3] Video:", video_name)
+        print("[Feature3] User ID:", user_id_int)
 
         files = {
             "video": (video_name, video_bytes, "video/mp4")
         }
 
+        # For internal calls, we need to pass user_id
+        # But feature2 requires auth... we need to handle this differently
+        # For now, feature2 will need to accept user_id for internal calls too
         response = requests.post(
             FEATURE2_ENDPOINT,
+            params={"user_id": str(user_id_int)},  # Pass user_id for internal call
             data=payload,
             files=files,
             timeout=5  # short timeout, async fire
@@ -42,10 +49,10 @@ def fire_feature2(video_bytes: bytes, video_name: str, payload: dict):
 
 @router.post("/personalized-wishes")
 async def personalized_wishes(
-    user_id: str = Form(...),
     script: str = Form(...),
     names: List[str] = Form(...),
-    video: UploadFile = File(...)
+    video: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
 ):
     # 🔒 Validate script
     if "{name}" not in script:
@@ -61,17 +68,20 @@ async def personalized_wishes(
     # 3️⃣ FORCE gender = female (IMPORTANT FIX)
     gender = "female"
 
+    # Get user_id from authenticated user
+    user_id_int = current_user["user_id"]
+    
     # 4️⃣ Fire Feature-2 asynchronously for each text
+    # Pass user_id as query param for internal service call
     for text in texts:
         payload = {
-            "user_id": user_id,
             "gender": gender,   # ✅ FIXED HERE
             "text": text
         }
 
         threading.Thread(
             target=fire_feature2,
-            args=(video_bytes, video.filename, payload),
+            args=(video_bytes, video.filename, payload, user_id_int),
             daemon=True
         ).start()
 
