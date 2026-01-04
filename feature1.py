@@ -1,14 +1,17 @@
 # backend/feature1.py
 
-from fastapi import APIRouter, UploadFile, File, Query, HTTPException
+from fastapi import APIRouter, UploadFile, File, Query, HTTPException, Depends
 from datetime import datetime
 import uuid
 import os
-from db import get_db_connection
+import psycopg2.extras
+from db import get_db_connection, return_db_connection
 from fastapi.responses import FileResponse
 from services.job_repository import get_job_by_id
 from services.feature1_executor import download_mp4
-import os
+from auth_router import get_current_user
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Optional
 
 router = APIRouter(prefix="/feature1", tags=["Feature1"])
 
@@ -59,11 +62,26 @@ OUTPUT_DIR = "storage/outputs"
 
 
 
+# Optional dependency for authentication
+security = HTTPBearer(auto_error=False)
+
+async def get_user_or_none(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """Get current user if token is provided, otherwise return None"""
+    if credentials:
+        try:
+            return await get_current_user(credentials)
+        except:
+            return None
+    return None
+
 @router.post("/create-job")
 async def create_job(
-    user_id: str = Query(...),
     video: UploadFile = File(...),
-    audio: UploadFile = File(...)
+    audio: UploadFile = File(...),
+    user_id: str = Query(None),  # Optional for internal service calls
+    current_user: Optional[dict] = Depends(get_user_or_none)
 ):
     job_id = str(uuid.uuid4())
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -83,6 +101,27 @@ async def create_job(
 
     conn = get_db_connection()
     cursor = conn.cursor()
+    
+    # Get user_id from authenticated user (from JWT token) or from query param (for internal calls)
+    if user_id:
+        # Internal service call - resolve user_id from username/email or use as-is if integer
+        try:
+            user_id_int = int(user_id)
+        except ValueError:
+            # If not an int, treat as username and look up user_id
+            cursor.execute("SELECT user_id FROM users WHERE username = %s OR email = %s", (user_id, user_id))
+            user_row = cursor.fetchone()
+            if not user_row:
+                return_db_connection(conn)
+                raise HTTPException(status_code=404, detail="User not found")
+            user_id_int = user_row[0]
+    elif current_user:
+        # External authenticated call - use user_id from JWT token
+        user_id_int = current_user["user_id"]
+    else:
+        # No authentication and no user_id provided
+        return_db_connection(conn)
+        raise HTTPException(status_code=401, detail="Authentication required or user_id must be provided")
 
     cursor.execute("""
         INSERT INTO jobs (
@@ -96,10 +135,10 @@ async def create_job(
             started_at,
             completed_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (
         job_id,
-        user_id,
+        user_id_int,
         video_path,
         audio_path,
         output_path,
@@ -110,7 +149,7 @@ async def create_job(
     ))
 
     conn.commit()
-    conn.close()
+    return_db_connection(conn)
 
     return {
         "job_id": job_id,
@@ -118,15 +157,23 @@ async def create_job(
     }
 
 @router.get("/jobs")
-def list_jobs():
+def list_jobs(current_user: dict = Depends(get_current_user)):
+    """Get jobs for the authenticated user only"""
     conn = get_db_connection()
-    cursor = conn.cursor()
+    # Use RealDictCursor to get dictionary-like rows
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-    cursor.execute("SELECT * FROM jobs ORDER BY created_at")
+    # Filter jobs by user_id - only return jobs for the authenticated user
+    cursor.execute(
+        "SELECT * FROM jobs WHERE user_id = %s ORDER BY created_at DESC",
+        (current_user["user_id"],)
+    )
     rows = cursor.fetchall()
 
-    conn.close()
-    return [dict(row) for row in rows]
+    # Convert RealDictRow to regular dict
+    result = [{k: v for k, v in row.items()} for row in rows]
+    return_db_connection(conn)
+    return result
 
 
 # from fastapi.responses import FileResponse
@@ -166,7 +213,18 @@ OUTPUT_DIR = "storage/outputs"
 
 
 @router.get("/download/{job_id}")
-def download_job_output(job_id: str):
+def download_job_output(job_id: str, current_user: dict = Depends(get_current_user)):
+    """Download job output - only if job belongs to authenticated user"""
+    # Verify job belongs to the user
+    job = get_job_by_id(job_id)
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Check if job belongs to the authenticated user
+    if job.get("user_id") != current_user["user_id"]:
+        raise HTTPException(status_code=403, detail="Access denied: This job does not belong to you")
+    
     file_path = os.path.join(OUTPUT_DIR, f"{job_id}.mp4")
 
     if not os.path.exists(file_path):
