@@ -13,7 +13,7 @@ router = APIRouter(prefix="/feature3", tags=["Feature3"])
 FEATURE2_ENDPOINT = "http://127.0.0.1:8000/feature2/text-to-avatar"
 
 
-def fire_feature2(video_bytes: bytes, video_name: str, payload: dict, user_id_int: int):
+def fire_feature2(video_bytes: bytes, video_name: str, payload: dict, user_id_int: int, feature_name: str):
     """
     Fire-and-forget call to Feature-2
     Note: Feature-2 now requires auth, but for internal calls we pass user_id
@@ -23,17 +23,19 @@ def fire_feature2(video_bytes: bytes, video_name: str, payload: dict, user_id_in
         print("[Feature3] Payload:", payload)
         print("[Feature3] Video:", video_name)
         print("[Feature3] User ID:", user_id_int)
+        print("[Feature3] Feature Name:", feature_name)
 
         files = {
             "video": (video_name, video_bytes, "video/mp4")
         }
 
-        # For internal calls, we need to pass user_id
-        # But feature2 requires auth... we need to handle this differently
-        # For now, feature2 will need to accept user_id for internal calls too
+        # Pass user_id and feature_name for internal call
         response = requests.post(
             FEATURE2_ENDPOINT,
-            params={"user_id": str(user_id_int)},  # Pass user_id for internal call
+            params={
+                "user_id": str(user_id_int),
+                "feature_name": feature_name  # Pass feature name to feature2
+            },
             data=payload,
             files=files,
             timeout=5  # short timeout, async fire
@@ -72,7 +74,8 @@ async def personalized_wishes(
     user_id_int = current_user["user_id"]
     
     # 4️⃣ Fire Feature-2 asynchronously for each text
-    # Pass user_id as query param for internal service call
+    # Pass user_id and feature name for internal service call
+    feature_name = "Personalized Wishes Generator"
     for text in texts:
         payload = {
             "gender": gender,   # ✅ FIXED HERE
@@ -81,7 +84,7 @@ async def personalized_wishes(
 
         threading.Thread(
             target=fire_feature2,
-            args=(video_bytes, video.filename, payload, user_id_int),
+            args=(video_bytes, video.filename, payload, user_id_int, feature_name),
             daemon=True
         ).start()
 

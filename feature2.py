@@ -54,14 +54,17 @@ def normalize_audio(input_wav: str) -> str:
 
 
 
-def enqueue_feature1_job(user_id_int, video_path, audio_path):
+def enqueue_feature1_job(user_id_int, video_path, audio_path, feature_name="Text-to-Avatar Studio"):
     """Enqueue feature1 job - user_id_int is integer from database"""
     try:
         with open(video_path, "rb") as v, open(audio_path, "rb") as a:
-            # Pass user_id as query param for internal service call
+            # Pass user_id and feature name as query params for internal service call
             requests.post(
                 FEATURE1_ENDPOINT,
-                params={"user_id": str(user_id_int)},
+                params={
+                    "user_id": str(user_id_int),
+                    "feature": feature_name
+                },
                 files={
                     "video": (os.path.basename(video_path), v, "video/mp4"),
                     "audio": (os.path.basename(audio_path), a, "audio/wav"),
@@ -79,6 +82,7 @@ async def text_to_avatar(
     gender: str = Form(...),
     video: UploadFile = File(...),
     user_id: str = Query(None),  # Optional for internal service calls
+    feature_name: str = Query("Text-to-Avatar Studio"),  # Feature name for tracking
     current_user: Optional[dict] = Depends(get_user_or_none)
 ):
     job_id = str(uuid.uuid4())
@@ -120,10 +124,10 @@ async def text_to_avatar(
         # No authentication and no user_id provided
         raise HTTPException(status_code=401, detail="Authentication required or user_id must be provided")
     
-    # 🔥 FIRE & FORGET - Pass user_id_int for internal service call
+    # 🔥 FIRE & FORGET - Pass user_id_int and feature name for internal service call
     threading.Thread(
         target=enqueue_feature1_job,
-        args=(user_id_int, video_path, audio_path),
+        args=(user_id_int, video_path, audio_path, feature_name),
         daemon=True
     ).start()
 
