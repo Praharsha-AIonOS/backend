@@ -81,6 +81,7 @@ async def create_job(
     video: UploadFile = File(...),
     audio: UploadFile = File(...),
     user_id: str = Query(None),  # Optional for internal service calls
+    feature: str = Query("Avatar Sync Studio"),  # Feature name, defaults to Avatar Sync Studio
     current_user: Optional[dict] = Depends(get_user_or_none)
 ):
     job_id = str(uuid.uuid4())
@@ -131,11 +132,12 @@ async def create_job(
             input_audio,
             output_video,
             status,
+            feature,
             created_at,
             started_at,
             completed_at
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (
         job_id,
         user_id_int,
@@ -143,6 +145,7 @@ async def create_job(
         audio_path,
         output_path,
         "QUEUED",
+        feature,  # Set the feature name
         created_at,
         None,
         None
