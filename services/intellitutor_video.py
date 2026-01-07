@@ -1,4 +1,5 @@
 # Video composition utilities for IntelliTutor (Feature 4)
+import os
 import subprocess
 
 
@@ -15,14 +16,30 @@ def compose_video(slide_images, avatar_video, duration, output_video):
         )
         slide_videos.append(out)
 
+    # FFmpeg concat expects paths relative to the concat file location.
     concat = output_video.replace(".mp4", "_concat.txt")
+    concat_dir = os.path.dirname(concat)
     with open(concat, "w") as f:
         for v in slide_videos:
-            f.write(f"file '{v}'\n")
+            # Write only the basename so ffmpeg, which is given the concat file path,
+            # can resolve files relative to storage/outputs/...
+            f.write(f"file '{os.path.basename(v)}'\n")
 
     bg = output_video.replace(".mp4", "_bg.mp4")
     subprocess.run(
-        ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat, "-c", "copy", bg],
+        [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            concat,
+            "-c",
+            "copy",
+            bg,
+        ],
         check=True,
     )
 
