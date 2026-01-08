@@ -12,6 +12,7 @@ from services.feature1_executor import download_mp4
 from auth_router import get_current_user
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
+from quota_utils import validate_and_increment_quota
 
 router = APIRouter(prefix="/feature1", tags=["Feature1"])
 
@@ -119,6 +120,8 @@ async def create_job(
     elif current_user:
         # External authenticated call - use user_id from JWT token
         user_id_int = current_user["user_id"]
+        # Check quota for external calls only
+        validate_and_increment_quota(user_id_int, feature)
     else:
         # No authentication and no user_id provided
         return_db_connection(conn)

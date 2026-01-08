@@ -8,6 +8,7 @@ from typing import Optional
 
 from db import get_db_connection, return_db_connection
 from auth_router import get_current_user
+from quota_utils import validate_and_increment_quota
 
 router = APIRouter(prefix="/feature4", tags=["Feature4"])
 
@@ -28,6 +29,10 @@ async def create_job(
         raise HTTPException(status_code=400, detail="PPT file must be .ppt or .pptx")
     if not face_video.filename.lower().endswith((".mp4", ".mov", ".mkv", ".avi")):
         raise HTTPException(status_code=400, detail="Face video must be a video file")
+
+    # Check quota before processing
+    user_id_int = current_user["user_id"]
+    validate_and_increment_quota(user_id_int, "IntelliTutor")
 
     job_id = str(uuid.uuid4())
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -52,8 +57,6 @@ async def create_job(
 
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    user_id_int = current_user["user_id"]
 
     # Store ppt path in input_audio, face video in input_video to reuse schema
     cursor.execute(

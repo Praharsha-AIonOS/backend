@@ -124,6 +124,18 @@ def init_db():
             )
         """)
 
+        # Create quotas table for feature access control
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS quotas (
+                quota_id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                feature VARCHAR(100) NOT NULL,
+                attempts_count INTEGER NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, feature)
+            )
+        """)
+
         # Create indexes for better performance
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_jobs_user_id ON jobs(user_id)
@@ -136,6 +148,12 @@ def init_db():
         """)
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_sessions_token_jti ON sessions(token_jti)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_quotas_user_id ON quotas(user_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_quotas_user_feature ON quotas(user_id, feature)
         """)
 
         conn.commit()
