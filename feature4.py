@@ -1,5 +1,5 @@
 # Feature 4: IntelliTutor
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form
 from datetime import datetime
 import uuid
 import os
@@ -19,8 +19,8 @@ OUTPUT_DIR = "storage/outputs"
 async def create_job(
     ppt: UploadFile = File(..., description="PowerPoint file"),
     face_video: UploadFile = File(..., description="Talking-head video"),
-    language: str = Query("en"),
-    gender: str = Query("male"),
+    language: str = Form("en"),
+    gender: str = Form("male"),
     current_user: dict = Depends(get_current_user),
 ):
     # Validate file types (basic)
@@ -44,6 +44,11 @@ async def create_job(
 
     with open(face_path, "wb") as f:
         f.write(await face_video.read())
+
+    # Store gender in metadata file (same pattern as feature2, no DB changes needed)
+    metadata_path = os.path.join(job_dir, "metadata.txt")
+    with open(metadata_path, "w") as f:
+        f.write(f"gender={gender}\n")
 
     conn = get_db_connection()
     cursor = conn.cursor()

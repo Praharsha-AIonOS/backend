@@ -25,7 +25,8 @@ def generate_audio(text: str, voice: str, output_path: str):
     # (Sarvam does not expose voice param directly like ElevenLabs)
     tts = sarvam_client.text_to_speech.convert(
         text=text,
-        target_language_code="en-IN"
+        target_language_code="en-IN",
+        speaker=voice
     )
 
     # Sarvam returns base64 audio
