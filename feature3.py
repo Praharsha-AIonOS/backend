@@ -7,6 +7,7 @@ from fastapi import APIRouter, UploadFile, Form, File, HTTPException, Depends
 
 from services.template_renderer import render_template
 from auth_router import get_current_user
+from quota_utils import validate_and_increment_quota
 
 router = APIRouter(prefix="/feature3", tags=["Feature3"])
 
@@ -60,6 +61,13 @@ async def personalized_wishes(
     if "{name}" not in script:
         raise HTTPException(status_code=400, detail="Script must contain {name}")
 
+    # Get user_id from authenticated user
+    user_id_int = current_user["user_id"]
+    
+    # Check quota (each submission counts as 1 attempt, regardless of number of names)
+    feature_name = "Personalized Wishes Generator"
+    validate_and_increment_quota(user_id_int, feature_name)
+
     # 1️⃣ Render personalized texts
     texts = render_template(script, names)
     print(f"[Feature3] Total jobs to queue: {len(texts)}")
@@ -69,13 +77,9 @@ async def personalized_wishes(
 
     # 3️⃣ FORCE gender = female (IMPORTANT FIX)
     gender = "female"
-
-    # Get user_id from authenticated user
-    user_id_int = current_user["user_id"]
     
     # 4️⃣ Fire Feature-2 asynchronously for each text
     # Pass user_id and feature name for internal service call
-    feature_name = "Personalized Wishes Generator"
     for text in texts:
         payload = {
             "gender": gender,   # ✅ FIXED HERE

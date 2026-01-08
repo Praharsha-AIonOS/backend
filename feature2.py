@@ -11,6 +11,7 @@ from services.tts_client import generate_audio
 from auth_router import get_current_user
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
+from quota_utils import validate_and_increment_quota
 
 # Optional dependency for authentication
 security = HTTPBearer(auto_error=False)
@@ -120,6 +121,8 @@ async def text_to_avatar(
     elif current_user:
         # External authenticated call
         user_id_int = current_user["user_id"]
+        # Check quota for external calls only
+        validate_and_increment_quota(user_id_int, feature_name)
     else:
         # No authentication and no user_id provided
         raise HTTPException(status_code=401, detail="Authentication required or user_id must be provided")
