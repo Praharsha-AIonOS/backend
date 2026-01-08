@@ -40,11 +40,25 @@ def run_feature4_job(job: dict):
 
     # 2) Generate TTS for each slide
     print("\n[IntelliTutor][2] Generating TTS for each slide...")
+    
+    # Read gender from metadata file (stored in job directory)
+    job_dir = os.path.dirname(ppt_path)
+    metadata_path = os.path.join(job_dir, "metadata.txt")
+    gender = "male"  # default
+    
+    if os.path.exists(metadata_path):
+        with open(metadata_path, "r") as f:
+            for line in f:
+                if line.startswith("gender="):
+                    gender = line.split("=", 1)[1].strip()
+    
+    print(f"[IntelliTutor] Using TTS: gender={gender}")
+    
     audio_files = []
     for i, text in enumerate(slide_texts):
         wav = os.path.join(workdir, f"slide_{i}.wav")
         print(f"[IntelliTutor] Generating audio for slide {i+1}/{len(slide_texts)}...")
-        generate_slide_audio(text, wav)
+        generate_slide_audio(text, wav, gender=gender)
         audio_files.append(wav)
     print(f"[IntelliTutor] Generated {len(audio_files)} audio files")
 
